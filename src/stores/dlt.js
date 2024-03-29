@@ -15,11 +15,9 @@ import {
   getDataPromise,
   setDataPromise
 } from 'src/libraries/storageDB'
-
 import axios from 'boot/axios'
 import { randomString } from 'src/libraries/strings'
 
-// Declaring indexedDB database
 const db = connectionDB()
 
 const stateObj = {
@@ -47,9 +45,12 @@ const stateObj = {
   auth2fa: null
 }
 
-// Declaring actions object
 const actionsObj = {
-  connect: async function (endpointUris) {
+  /**
+   * Connects to the Knish.IO servers.
+   * @param {string[]} endpointUris - Array of endpoint URIs.
+   */
+  async connect (endpointUris) {
     const validServers = await this.testEndpointUris(endpointUris)
 
     if (Object.values(validServers).length > 0) {
@@ -68,128 +69,94 @@ const actionsObj = {
   },
 
   /**
-   * Stores an existing user secret or produces a new one
-   * This determines the user account all operations will work with
-   *
-   * @param {string|null} newSecret
-   * @returns {Promise<void>}
-   * @constructor
+   * Initializes the user session.
+   * @param {string|null} [newSecret=null] - New user secret.
    */
-  init: async function (newSecret = null) {
+  async init (newSecret = null) {
     console.groupCollapsed('DLT::init() - Initializing User...')
-
     console.info('DLT::init() - Beginning bootstrap procedure...')
 
-    // Do we have a client available?
-    if (this.client) {
-      // Generating / recovering user's secret
-      let secret
-      if (newSecret) {
-        console.info('DLT::init() - Replacing user secret...')
-        secret = newSecret
-      } else {
-        console.info('DLT::init() - Retrieving user identity...')
-        secret = await getDataPromise(db, 'secret')
-      }
-
-      // Authorizing, if necessary
-      await this.authorize(newSecret)
-
-      if (secret) {
-        // Saving secret
-        this.secret = secret
-        await setDataPromise(db, 'secret', secret)
-
-        // Generating bundle hash
-        this.bundle = generateBundleHash(secret)
-        console.info(`DLT::init() - Establishing bundle hash ${this.bundle}...`)
-
-        // Get a username
-        this.username = await getDataPromise(db, 'username')
-
-        // Can we update metadata? If not, we will be logged out
-        this.isLoggedIn = await this.update()
-      } else {
-        console.warn('DLT::init() - User is not logged in...')
-        this.isLoggedIn = false
-      }
-
-      this.isInitialized = true
-    } else {
+    if (!this.client) {
       console.error('DLT::init() - No Knish.IO client available!')
+      return
     }
 
+    let secret
+    if (newSecret) {
+      console.info('DLT::init() - Replacing user secret...')
+      secret = newSecret
+    } else {
+      console.info('DLT::init() - Retrieving user identity...')
+      secret = await getDataPromise(db, 'secret')
+    }
+
+    await this.authorize(newSecret)
+
+    if (secret) {
+      this.secret = secret
+      await setDataPromise(db, 'secret', secret)
+
+      this.bundle = generateBundleHash(secret)
+      console.info(`DLT::init() - Establishing bundle hash ${this.bundle}...`)
+
+      this.username = await getDataPromise(db, 'username')
+
+      this.isLoggedIn = await this.update()
+    } else {
+      console.warn('DLT::init() - User is not logged in...')
+      this.isLoggedIn = false
+    }
+
+    this.isInitialized = true
     console.info('DLT::init() - Bootstrap complete.')
     console.groupEnd()
   },
 
   /**
-   * Verifies the user's login combination
-   *
-   * @param username
-   * @param password
-   * @param secret
-   * @returns {Promise<boolean>}
+   * Verifies the user's login credentials.
+   * @param {Object} options - Login options.
+   * @param {string|null} [options.username=null] - Username.
+   * @param {string|null} [options.password=null] - Password.
+   * @param {string|null} [options.secret=null] - User secret.
+   * @returns {Promise<boolean>} - True if login is verified, false otherwise.
    */
-  async verifyLogin ({
-    username = null,
-    password = null,
-    secret = null
-  }) {
+  async verifyLogin ({ username = null, password = null, secret = null }) {
     console.log(`DLT::verifyLogin() - Starting login verification process with username ${username} password ${password}...`)
 
     if (!process.env.KNISHIO_APP_SALT) {
       throw new BaseException('DLT::login() - Salt is required for secure hashing!')
     }
 
-    // Starting new Knish.IO session
     if (!secret) {
       secret = generateSecret(`${username}:${password}:${process.env.KNISHIO_APP_SALT}`)
     }
 
-    // Generating bundle hash
     const bundle = generateBundleHash(secret)
-
     console.info(`DLT::verifyLogin() - Establishing bundle hash ${bundle}...`)
 
     const userBundle = new WalletBundle({})
-    await userBundle.query(this.client, {
-      bundleHash: bundle
-    })
+    await userBundle.query(this.client, { bundleHash: bundle })
 
-    // Match discovered?
     return userBundle.id && Object.keys(userBundle.metas).length > 0
   },
 
   /**
-   * Attempts to log in the user by hashing a new secret and retrieving the user's data
-   *
-   * @param {string|null} username
-   * @param {string|null} password
-   * @param {string|null} secret
-   * @param {string|null} auth2fa
-   * @returns {Promise<boolean|string>}
+   * Logs in the user.
+   * @param {Object} options - Login options.
+   * @param {string|null} [options.username=null] - Username.
+   * @param {string|null} [options.password=null] - Password.
+   * @param {string|null} [options.secret=null] - User secret.
+   * @param {string|null} [options.auth2fa=null] - Two-factor authentication code.
+   * @returns {Promise<boolean|string>} - True if login is successful, false or 2FA code if login fails.
    */
-  async login ({
-    username = null,
-    password = null,
-    secret = null,
-    auth2fa = null
-  }) {
-    // Successful login, proceed to session initialization
-    if (await this.verifyLogin({
-      username,
-      password,
-      secret
-    })) {
+  async login ({ username = null, password = null, secret = null, auth2fa = null }) {
+    if (await this.verifyLogin({ username, password, secret })) {
       if (process.env.KNISHIO_2FA_ENABLED) {
-        // If 2FA hasn't been set, set it
         if (!this.auth2fa || auth2fa === null) {
           this.auth2fa = randomString(8)
           return this.auth2fa
         }
 
-        // 2FA not matching?
         if (this.auth2fa !== auth2fa) {
           console.warn('DLT::login() - 2FA failure. Aborting login...')
           await this.logout()
@@ -199,12 +166,10 @@ const actionsObj = {
 
       console.log('DLT::login() - Logging in...')
 
-      // Starting new Knish.IO session
       if (!secret) {
         secret = generateSecret(`${username}:${password}:${process.env.KNISHIO_APP_SALT}`)
       }
 
-      // Starting authorization process
       await this.authorize(secret)
 
       this.isLoggedIn = true
@@ -220,10 +185,9 @@ const actionsObj = {
       return false
     }
   },
+
   /**
-   * Clears the user state to begin an empty session
-   *
-   * @returns {Promise<void>}
+   * Clears the user session.
    */
   async logout () {
     console.log('DLT::logout() - Clearing user session...')
@@ -248,79 +212,66 @@ const actionsObj = {
   },
 
   /**
-   * Retrieves an authorization token from the ledger
-   *
-   * @param {string|null} newSecret
-   * @returns {Promise<void>}
+   * Retrieves an authorization token from the ledger.
+   * @param {string|null} [newSecret=null] - New user secret.
    */
   async authorize (newSecret = null) {
     console.log('DLT::authorize() - Starting authorization process...')
 
-    if (this.client) {
-      // Has a new secret: saving secret locally & update it on KnishIOClient
-      if (newSecret) {
-        console.log('DTL::authorize() - Replacing user secret...')
-        await setDataPromise(db, 'secret', newSecret)
-      }
-
-      // Get stored secret & set it to the KnishIOClient
-      console.log('DTL::authorize() - Retrieving user identity...')
-      const secret = await getDataPromise(db, 'secret')
-      if (secret) {
-        this.client.setSecret(secret)
-      }
-
-      // Auth token default initialization
-      const authTokenData = await getDataPromise(db, 'authToken')
-
-      // Has a stored auth token data - restore an authToken object from it
-      let authTokenObject = null
-      if (authTokenData) {
-        authTokenObject = AuthToken.restore(authTokenData, secret)
-      }
-      console.log(`DLT::init() - Retrieving auth token ${authTokenObject ? authTokenObject.getToken() : 'NONE'}...`)
-
-      // Try to get a new auth token
-      if (newSecret || !authTokenObject || authTokenObject.isExpired()) {
-        // Get a new auth token
-        const response = await this.client.requestAuthToken({ secret })
-        if (response) {
-          const payload = response.payload()
-          const access = (Object.prototype.toString.call(payload) === '[object St,ring]') ? JSON.parse(payload) : payload
-
-          if (typeof access.token !== 'undefined') {
-            this.authToken = access.token
-            this.resetAuthTimeout()
-            this.setAuthTimeout(access)
-          }
-        }
-
-        // Get an authToken from the client
-        authTokenObject = this.client.getAuthToken()
-        console.log(`DLT::init() - Get a new auth token ${authTokenObject.getToken()}...`)
-
-        // Save authToken
-        await setDataPromise(db, 'authToken', authTokenObject.getSnapshot())
-      }
-
-      // Set an auth token to the KnishIOClient
-      this.client.setAuthToken(authTokenObject)
-    } else {
+    if (!this.client) {
       console.error('DLT::authorize() - No Knish.IO client available!')
+      return
     }
+
+    if (newSecret) {
+      console.log('DTL::authorize() - Replacing user secret...')
+      await setDataPromise(db, 'secret', newSecret)
+    }
+
+    console.log('DTL::authorize() - Retrieving user identity...')
+    const secret = await getDataPromise(db, 'secret')
+    if (secret) {
+      this.client.setSecret(secret)
+    }
+
+    const authTokenData = await getDataPromise(db, 'authToken')
+
+    let authTokenObject = null
+    if (authTokenData) {
+      authTokenObject = AuthToken.restore(authTokenData, secret)
+    }
+    console.log(`DLT::init() - Retrieving auth token ${authTokenObject?.getToken() ?? 'NONE'}...`)
+
+    if (newSecret || !authTokenObject || authTokenObject.isExpired()) {
+      const response = await this.client.requestAuthToken({ secret })
+      if (response) {
+        const { token, time } = response.payload()
+
+        if (token) {
+          this.authToken = token
+          this.resetAuthTimeout()
+          this.setAuthTimeout({ time })
+        }
+      }
+
+      authTokenObject = this.client.getAuthToken()
+      console.log(`DLT::init() - Get a new auth token ${authTokenObject.getToken()}...`)
+
+      await setDataPromise(db, 'authToken', authTokenObject.getSnapshot())
+    }
+
+    this.client.setAuthToken(authTokenObject)
   },
+
   /**
-   * Retrieves the latest metadata from the ledger and populates local state
-   *
-   * @returns {Promise<boolean>}
+   * Retrieves the latest metadata from the ledger and updates the local state.
+   * @returns {Promise<boolean>} - True if update is successful, false otherwise.
    */
   async update () {
     console.log('DLT::update() - Beginning remote update...')
 
     const bundleObject = new WalletBundle({})
-    await bundleObject.query(this.client, {
-      bundleHash: this.bundle
-    })
+    await bundleObject.query(this.client, { bundleHash: this.bundle })
 
     console.log(`DLT::update() - Retrieved ${Object.keys(bundleObject.metas).length} metadata fields...`)
 
@@ -329,10 +280,10 @@ const actionsObj = {
 
       this.createdAt = Number(bundleObject.createdAt)
 
-      // Generate a random cover
+      const { avatar, publicName } = bundleObject.metas
       this.profile = {
-        avatar: bundleObject.metas.avatar,
-        publicName: bundleObject.metas.publicName,
+        avatar,
+        publicName,
         username: await getDataPromise(db, 'username')
       }
       console.log('DLT::update() - Update complete...')
@@ -345,119 +296,99 @@ const actionsObj = {
   },
 
   /**
-   * Validates the registration state of the user to ensure there is no duplicate
-   *
-   * @param {string|null} username
-   * @param {string|null} password
-   * @param {string|null} secret
-   * @param {string|null} publicName
-   * @param {boolean|null} auth2fa
-   * @returns {Promise<boolean>}
+   * Registers a new user.
+   * @param {Object} options - Registration options.
+   * @param {string|null} [options.username=null] - Username.
+   * @param {string|null} [options.password=null] - Password.
+   * @param {string|null} [options.secret=null] - User secret.
+   * @param {string|null} [options.publicName=null] - Public name.
+   * @param {boolean|null} [options.auth2fa=null] - Two-factor authentication enabled.
+   * @returns {Promise<boolean|string>} - True if registration is successful, false or 2FA code if registration fails.
    */
-  async register ({
-    username = null,
-    password = null,
-    secret = null,
-    publicName = null,
-    auth2fa = null
-  }) {
+  async register ({ username = null, password = null, secret = null, publicName = null, auth2fa = null }) {
     console.log('DLT::register() - Starting registration process...')
 
-    // Failed login, meaning no collision was found - this is good
-    if (!await this.verifyLogin({
-      username,
-      password,
-      secret
-    })) {
-      if (process.env.KNISHIO_2FA_ENABLED) {
-        // If 2FA hasn't been set, set it
-        if (!this.auth2fa || auth2fa === null) {
-          this.auth2fa = randomString(8)
-          return this.auth2fa
-        }
-
-        // 2FA not matching?
-        if (this.auth2fa !== auth2fa) {
-          console.warn('DLT::login() - 2FA failure. Aborting login...')
-          await this.logout()
-          return false
-        }
-      }
-
-      console.log('DLT::register() - Registering...')
-
-      // Starting new Knish.IO session
-      if (!secret) {
-        secret = generateSecret(`${username}:${password}:${process.env.KNISHIO_APP_SALT}`)
-      }
-
-      // Starting authorization process
-      await this.authorize(secret)
-
-      this.isLoggedIn = true
-      this.username = username
-      this.auth2fa = null
-      this.profile.publicName = publicName
-      await setDataPromise(db, 'username', username)
-
-      const saveParams = {
-        metaData: {
-          publicName,
-          usernameHash: this.hash(username),
-          appSlug: String(process.env.KNISHIO_APP_SLUG)
-        },
-        metaId: generateBundleHash(secret)
-      }
-
-      // Register user's metadata in the ledger
-      const bundle = new WalletBundle({})
-      const response = await bundle.save(this.client, saveParams)
-
-      // All good, re-initialize user with new credentials
-      if (response.error < 1) {
-        await this.init()
-        return true
-      }
-
-      // Ledger returned an exception!
-      await this.logout()
-      throw new BaseException(response.error_message)
-    } else {
-      // Successful login - registration not needed
+    if (await this.verifyLogin({ username, password, secret })) {
       console.warn('DLT::register() - User already registered; Logging in instead...')
       await this.init()
       return true
     }
+
+    if (process.env.KNISHIO_2FA_ENABLED) {
+      if (!this.auth2fa || auth2fa === null) {
+        this.auth2fa = randomString(8)
+        return this.auth2fa
+      }
+
+      if (this.auth2fa !== auth2fa) {
+        console.warn('DLT::login() - 2FA failure. Aborting login...')
+        await this.logout()
+        return false
+      }
+    }
+
+    console.log('DLT::register() - Registering...')
+
+    if (!secret) {
+      secret = generateSecret(`${username}:${password}:${process.env.KNISHIO_APP_SALT}`)
+    }
+
+    await this.authorize(secret)
+
+    this.isLoggedIn = true
+    this.username = username
+    this.auth2fa = null
+    this.profile.publicName = publicName
+    await setDataPromise(db, 'username', username)
+
+    const saveParams = {
+      metaData: {
+        publicName,
+        usernameHash: this.hash(username),
+        appSlug: String(process.env.KNISHIO_APP_SLUG)
+      },
+      metaId: generateBundleHash(secret)
+    }
+
+    const bundle = new WalletBundle({})
+    const response = await bundle.save(this.client, saveParams)
+
+    if (response.error < 1) {
+      await this.init()
+      return true
+    }
+
+    await this.logout()
+    throw new BaseException(response.error_message)
   },
 
   /**
-   * Sets a timer on a repeat request for an auth token
-   *
-   * @param access
+   * Sets a timer for requesting an auth token.
+   * @param {Object} options - Auth token options.
+   * @param {number} options.time - Time in milliseconds.
    */
-  setAuthTimeout (access) {
+  setAuthTimeout ({ time }) {
     setTimeout(async () => {
       await this.authorize(this.client.hasSecret() ? this.client.getSecret() : null)
-    }, access.time)
+    }, time)
   },
 
   /**
-   * Resets the auth token timer
+   * Resets the auth token timer.
    */
   resetAuthTimeout () {
-    if (!this.authTimeout) {
+    if (this.authTimeout) {
       clearTimeout(this.authTimeout)
+      this.authTimeout = null
     }
-    this.authTimeout = null
   },
 
   /**
-   * Hashes a string with a salt
-   *
-   * @param {string} data
-   * @param {number} length
-   * @param {boolean} salted
-   * @returns {string|*}
+   * Hashes a string with a salt.
+   * @param {string} data - String to hash.
+   * @param {number} [length=64] - Length of the hash.
+   * @param {boolean} [salted=true] - Whether to salt the hash.
+   * @returns {string} - Hashed string.
    */
   hash (data, length = 64, salted = true) {
     if (salted && !process.env.KNISHIO_APP_SALT) {
@@ -468,10 +399,9 @@ const actionsObj = {
   },
 
   /**
-   * Checks the ledger for presence of a given hashed username
-   *
-   * @param {string} username
-   * @returns {Promise<boolean>}
+   * Checks if a username is unique in the ledger.
+   * @param {string} username - Username to check.
+   * @returns {Promise<boolean>} - True if the username is unique, false otherwise.
    */
   async isUsernameUnique (username) {
     const usernameHash = this.hash(username)
@@ -480,7 +410,8 @@ const actionsObj = {
       key: 'usernameHash',
       value: usernameHash
     })
-    if (result && result.instances && result.instances.length > 0) {
+
+    if (result?.instances?.length > 0) {
       console.info(`DLT::isUsernameUnique() - Found a match for ${usernameHash}...`)
       return false
     } else {
@@ -489,12 +420,6 @@ const actionsObj = {
     }
   },
 
-  /**
-   * Checks the ledger for user already invited
-   *
-   * @param {string} recipient
-   * @returns {Promise<boolean>}
-   */
   async isUsernameInvited (recipient) {
     const usernameHash = this.hash(recipient)
     const result = await this.client.queryMeta({
@@ -502,20 +427,20 @@ const actionsObj = {
       key: 'recipientHashedEmail',
       value: usernameHash
     })
-    if (result && result.instances && result.instances.length > 0) {
+
+    if (result?.instances?.length > 0) {
       console.info(`DLT::isUsernameInvited() - Found a match for ${usernameHash}...`)
-      return false
+      return true
     } else {
       console.info(`DLT::isUsernameInvited() - No matches found for ${usernameHash}...`)
-      return true
+      return false
     }
   },
 
   /**
-   * Accepts an array of endpoint URIs and returns a list of those that respond
-   *
-   * @param uris
-   * @returns {Promise<{}>}
+   * Tests the availability of endpoint URIs.
+   * @param {string[]} uris - Array of endpoint URIs to test.
+   * @returns {Promise<Object>} - Object containing the valid server URIs.
    */
   async testEndpointUris (uris) {
     const validServers = {}
@@ -535,7 +460,7 @@ const actionsObj = {
           console.info(`DLT::testEndpointUris() - Node hostname ${uris[uriKey]} successfully added.`)
         }
       } catch (err) {
-        console.error(err)
+        console.error(`DLT::testEndpointUris() - Error testing node hostname ${uris[uriKey]}:`, err)
         console.warn(`DLT::testEndpointUris() - Node hostname ${uris[uriKey]} is not available.`)
       }
     }
@@ -544,32 +469,31 @@ const actionsObj = {
   }
 }
 
-// Declaring getters object
 const gettersObj = {
-
   /**
-   * Returns whether the current user is a valid admin
-   *
-   * @returns {boolean}
+   * Checks if the current user is an authorized admin.
+   * @returns {boolean} - True if the user is an authorized admin, false otherwise.
    */
   userIsAuthorized () {
-    const admins = typeof process.env.KNISHIO_APP_ADMINS === 'object' ? Object.values(process.env.KNISHIO_APP_ADMINS) : []
+    const admins = Array.isArray(process.env.KNISHIO_APP_ADMINS)
+      ? process.env.KNISHIO_APP_ADMINS
+      : []
     return admins.includes(this.bundle)
   },
 
   /**
-   * Returns a truncated version of the user's wallet bundle
-   *
-   * @returns {string}
+   * Returns a truncated version of the user's wallet bundle.
+   * @returns {string} - Truncated wallet bundle.
    */
   shortBundle () {
-    return this.bundle ? this.bundle.slice(this.bundle.length - 4).toUpperCase() : 'N/A'
+    return this.bundle
+      ? this.bundle.slice(this.bundle.length - 4).toUpperCase()
+      : 'N/A'
   },
 
   /**
-   * Returns the default encryption wallet for this app
-   *
-   * @returns {Wallet}
+   * Returns the default encryption wallet for the app.
+   * @returns {Wallet} - Default encryption wallet.
    */
   encryptionWallet () {
     return new Wallet({
@@ -581,7 +505,7 @@ const gettersObj = {
 }
 
 export default defineStore('dlt', {
-  state: () => (stateObj),
+  state: () => stateObj,
   actions: actionsObj,
   getters: gettersObj,
   persist: false
