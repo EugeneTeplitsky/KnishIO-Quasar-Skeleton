@@ -1,6 +1,6 @@
 <template>
   <q-page class="flex flex-center">
-    Please log in above
+    Dashboard
   </q-page>
 </template>
 

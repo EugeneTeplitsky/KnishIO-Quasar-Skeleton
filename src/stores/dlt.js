@@ -15,8 +15,8 @@ import {
   getDataPromise,
   setDataPromise
 } from 'src/libraries/storageDB'
-import axios from 'boot/axios'
 import { randomString } from 'src/libraries/strings'
+import axios from 'axios'
 
 const db = connectionDB()
 
@@ -58,8 +58,7 @@ const actionsObj = {
       console.info(`Creating Knish.IO client connected to ${Object.values(validServers).length} node(s)...`)
       this.client = new KnishIOClient({
         uri: this.serverUris,
-        socketUri: KNISHIO_SETTINGS.subscriptionSocketUri,
-        cellSlug: KNISHIO_SETTINGS.appSlug
+        cellSlug: KNISHIO_SETTINGS.cellSlug
       })
       this.hasError = false
     } else {
@@ -120,15 +119,19 @@ const actionsObj = {
    * @param {string|null} [options.secret=null] - User secret.
    * @returns {Promise<boolean>} - True if login is verified, false otherwise.
    */
-  async verifyLogin ({ username = null, password = null, secret = null }) {
+  async verifyLogin ({
+    username = null,
+    password = null,
+    secret = null
+  }) {
     console.log(`DLT::verifyLogin() - Starting login verification process with username ${username} password ${password}...`)
 
-    if (!process.env.KNISHIO_APP_SALT) {
+    if (!KNISHIO_SETTINGS.salt) {
       throw new BaseException('DLT::login() - Salt is required for secure hashing!')
     }
 
     if (!secret) {
-      secret = generateSecret(`${username}:${password}:${process.env.KNISHIO_APP_SALT}`)
+      secret = generateSecret(`${username}:${password}:${KNISHIO_SETTINGS.salt}`)
     }
 
     const bundle = generateBundleHash(secret)
@@ -149,8 +152,17 @@ const actionsObj = {
    * @param {string|null} [options.auth2fa=null] - Two-factor authentication code.
    * @returns {Promise<boolean|string>} - True if login is successful, false or 2FA code if login fails.
    */
-  async login ({ username = null, password = null, secret = null, auth2fa = null }) {
-    if (await this.verifyLogin({ username, password, secret })) {
+  async login ({
+    username = null,
+    password = null,
+    secret = null,
+    auth2fa = null
+  }) {
+    if (await this.verifyLogin({
+      username,
+      password,
+      secret
+    })) {
       if (process.env.KNISHIO_2FA_ENABLED) {
         if (!this.auth2fa || auth2fa === null) {
           this.auth2fa = randomString(8)
@@ -167,7 +179,7 @@ const actionsObj = {
       console.log('DLT::login() - Logging in...')
 
       if (!secret) {
-        secret = generateSecret(`${username}:${password}:${process.env.KNISHIO_APP_SALT}`)
+        secret = generateSecret(`${username}:${password}:${KNISHIO_SETTINGS.salt}`)
       }
 
       await this.authorize(secret)
@@ -245,7 +257,10 @@ const actionsObj = {
     if (newSecret || !authTokenObject || authTokenObject.isExpired()) {
       const response = await this.client.requestAuthToken({ secret })
       if (response) {
-        const { token, time } = response.payload()
+        const {
+          token,
+          time
+        } = response.payload()
 
         if (token) {
           this.authToken = token
@@ -280,7 +295,10 @@ const actionsObj = {
 
       this.createdAt = Number(bundleObject.createdAt)
 
-      const { avatar, publicName } = bundleObject.metas
+      const {
+        avatar,
+        publicName
+      } = bundleObject.metas
       this.profile = {
         avatar,
         publicName,
@@ -305,10 +323,20 @@ const actionsObj = {
    * @param {boolean|null} [options.auth2fa=null] - Two-factor authentication enabled.
    * @returns {Promise<boolean|string>} - True if registration is successful, false or 2FA code if registration fails.
    */
-  async register ({ username = null, password = null, secret = null, publicName = null, auth2fa = null }) {
+  async register ({
+    username = null,
+    password = null,
+    secret = null,
+    publicName = null,
+    auth2fa = null
+  }) {
     console.log('DLT::register() - Starting registration process...')
 
-    if (await this.verifyLogin({ username, password, secret })) {
+    if (await this.verifyLogin({
+      username,
+      password,
+      secret
+    })) {
       console.warn('DLT::register() - User already registered; Logging in instead...')
       await this.init()
       return true
@@ -330,7 +358,7 @@ const actionsObj = {
     console.log('DLT::register() - Registering...')
 
     if (!secret) {
-      secret = generateSecret(`${username}:${password}:${process.env.KNISHIO_APP_SALT}`)
+      secret = generateSecret(`${username}:${password}:${KNISHIO_SETTINGS.salt}`)
     }
 
     await this.authorize(secret)
@@ -391,11 +419,11 @@ const actionsObj = {
    * @returns {string} - Hashed string.
    */
   hash (data, length = 64, salted = true) {
-    if (salted && !process.env.KNISHIO_APP_SALT) {
+    if (salted && !KNISHIO_SETTINGS.salt) {
       throw new BaseException('DLT::hash() - Salt is required for secure hashing!')
     }
 
-    return generateSecret(`${data}${salted ? `:${process.env.KNISHIO_APP_SALT}` : ''}`, length)
+    return generateSecret(`${data}${salted ? `:${KNISHIO_SETTINGS.salt}` : ''}`, length)
   },
 
   /**
@@ -420,40 +448,18 @@ const actionsObj = {
     }
   },
 
-  async isUsernameInvited (recipient) {
-    const usernameHash = this.hash(recipient)
-    const result = await this.client.queryMeta({
-      metaType: KNISHIO_SETTINGS.invite,
-      key: 'recipientHashedEmail',
-      value: usernameHash
-    })
-
-    if (result?.instances?.length > 0) {
-      console.info(`DLT::isUsernameInvited() - Found a match for ${usernameHash}...`)
-      return true
-    } else {
-      console.info(`DLT::isUsernameInvited() - No matches found for ${usernameHash}...`)
-      return false
-    }
-  },
-
   /**
    * Tests the availability of endpoint URIs.
-   * @param {string[]} uris - Array of endpoint URIs to test.
+   * @param {object} uris - Array of endpoint URIs to test.
    * @returns {Promise<Object>} - Object containing the valid server URIs.
    */
   async testEndpointUris (uris) {
     const validServers = {}
-
-    for (const uriKey in uris) {
-      console.info(`Testing connection to node hostname ${uris[uriKey]}...`)
-
+    for (const uriKey of Object.keys(uris)) {
+      const uri = uris[uriKey]
+      console.info(`Testing connection to node hostname ${uri}...`)
       try {
-        const response = await axios({
-          method: 'get',
-          url: uris[uriKey],
-          data: {}
-        })
+        const response = await axios.get(uris[uriKey])
 
         if (response.status === 200) {
           validServers[uriKey] = uris[uriKey]

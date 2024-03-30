@@ -78,11 +78,12 @@ export default class KnishIOModel {
       type = KnishIOModel.resolveMetaType(this.constructor.metaType)
     }
 
-    const result = await client.queryMeta({
+    const result = await client.queryAtom({
       metaType: type,
-      metaId: metaId || this.id,
-      throughAtom: true
+      metaId: metaId || this.id
     })
+
+    console.log(result)
 
     if (result && result.instances && result.instances.length > 0) {
       if (metaId) {

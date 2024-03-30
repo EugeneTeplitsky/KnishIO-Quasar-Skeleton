@@ -5,6 +5,8 @@
 
 import { configure } from 'quasar/wrappers'
 import { fileURLToPath } from 'node:url'
+import dotenv from 'dotenv'
+const parsedEnv = dotenv.config().parsed
 
 export default configure((ctx) => {
   return {
@@ -54,7 +56,7 @@ export default configure((ctx) => {
 
       // publicPath: '/',
       // analyze: true,
-      // env: {},
+      env: parsedEnv,
       // rawDefine: {}
       // ignorePublicFolder: true,
       // minify: false,

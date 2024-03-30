@@ -15,7 +15,16 @@
           Quasar App
         </q-toolbar-title>
 
-        <div>Quasar v{{ $q.version }}</div>
+        <div
+          v-if="dltStore.isInitialized"
+        >
+          <logout-form
+            v-if="dltStore.isLoggedIn"
+          />
+          <login-form
+            v-else
+          />
+        </div>
       </q-toolbar>
     </q-header>
 
@@ -40,19 +49,40 @@
     </q-drawer>
 
     <q-page-container>
-      <router-view />
+      <div
+        v-if="dltStore.isInitialized"
+      >
+        <router-view />
+      </div>
+      <div
+        v-else
+      >
+        Ledger client not initialized
+      </div>
     </q-page-container>
   </q-layout>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import {
+  onMounted,
+  ref,
+  watch
+} from 'vue'
+import { useRouter } from 'vue-router'
 import EssentialLink from 'components/EssentialLink.vue'
+import hasDltStore from 'src/mixins/hasDltStore'
+import { KNISHIO_SETTINGS } from 'src/libraries/constants/knishio.js'
+import LoginForm from 'components/LoginForm.vue'
+import LogoutForm from 'components/LogoutForm.vue'
 
 defineOptions({
   name: 'MainLayout'
 })
 
+// Use the dltStore mixin
+const { dltStore } = hasDltStore()
+const router = useRouter()
 const linksList = [
   {
     title: 'Docs',
@@ -97,6 +127,51 @@ const linksList = [
     link: 'https://awesome.quasar.dev'
   }
 ]
+
+// Watch for changes in the user's login status
+watch(
+  () => dltStore.isLoggedIn,
+  (isLoggedIn) => {
+    if (isLoggedIn) {
+      // User is logged in, redirect to the Dashboard
+      router.push({ name: 'dashboard' })
+    } else {
+      router.push({ name: 'home' })
+    }
+  }
+)
+
+// Session restoration logic
+onMounted(async () => {
+  try {
+    // Connect to the Knish.IO servers
+    await dltStore.connect(KNISHIO_SETTINGS.serverUriConfig)
+
+    // Initialize the user session
+    await dltStore.init()
+
+    // Check if the user is logged in
+    if (dltStore.isLoggedIn) {
+      // User is logged in, perform any necessary actions
+      console.log('User is logged in')
+      // Example: Redirect to a dashboard page
+      // this.$router.push('/dashboard')
+    } else {
+      // User is not logged in, perform any necessary actions
+      console.log('User is not logged in')
+      // Example: Redirect to a login page
+      // this.$router.push('/login')
+    }
+  } catch (error) {
+    // Handle any errors that occur during session restoration
+    console.error('Error restoring session:', error)
+    // Example: Show an error message to the user
+    // this.$q.notify({
+    //   message: 'Failed to restore session. Please try again.',
+    //   color: 'negative'
+    // })
+  }
+})
 
 const leftDrawerOpen = ref(false)
 

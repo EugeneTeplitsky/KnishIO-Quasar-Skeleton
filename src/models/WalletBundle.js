@@ -24,23 +24,24 @@ export default class WalletBundle extends KnishIOModel {
       })
     }
 
-    const result = await client.queryMeta({
+    const result = await client.queryAtom({
       metaType: KnishIOModel.resolveMetaType(this.constructor.metaType),
       metaId: bundleHash || this.id,
       filter: filters,
-      throughAtom: true
+      latest: true
     })
-
-    if (result && result.instances && result.instances.length > 0) {
-      if (bundleHash) {
-        this.id = bundleHash
-        this.createdAt = result.instances[0].createdAt
+    if (result) {
+      const payload = result.payload()
+      if (payload.instances && payload.instances.length > 0) {
+        if (bundleHash) {
+          this.id = bundleHash
+          this.createdAt = payload.instances[0].createdAt
+        }
+        this.loadMetas(payload.instances[0].metas)
+        return true
       }
-      this.loadMetas(result.instances[0].metas)
-      return true
-    } else {
-      return false
     }
+    return false
   }
 
   /**
