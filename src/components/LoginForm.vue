@@ -14,6 +14,7 @@
         dense
         dark
         hide-bottom-space
+        :disable="loading"
       />
     </div>
     <div>
@@ -27,6 +28,7 @@
         dense
         dark
         hide-bottom-space
+        :disable="loading"
       />
     </div>
     <div
@@ -40,8 +42,15 @@
         type="submit"
         color="white"
         text-color="primary"
-        label="Login"
-      />
+        :label="loading ? null : 'Login'"
+        :disabled="loading"
+      >
+        <q-spinner
+          v-if="loading"
+          color="primary"
+          size="xs"
+        />
+      </q-btn>
     </div>
   </q-form>
 </template>
@@ -57,6 +66,7 @@ const { dltStore } = hasDltStore()
 const email = ref('')
 const password = ref('')
 const loginError = ref(false)
+const loading = ref(false)
 
 const router = useRouter()
 
@@ -67,18 +77,26 @@ const isValidEmail = val => {
 
 const handleLogin = async () => {
   loginError.value = false
+  loading.value = true
 
-  const loginResult = await dltStore.login({
-    username: email.value,
-    password: password.value
-  })
+  try {
+    const loginResult = await dltStore.login({
+      username: email.value,
+      password: password.value
+    })
 
-  if (loginResult) {
-    // User is logged in successfully
-    await router.push({ name: 'dashboard' }) // Navigate to the dashboard or desired page
-  } else {
-    // Handle bad login
+    if (loginResult) {
+      // User is logged in successfully
+      await router.push({ name: 'dashboard' })
+    } else {
+      // Handle bad login
+      loginError.value = true
+    }
+  } catch (error) {
+    console.error('Login error:', error)
     loginError.value = true
+  } finally {
+    loading.value = false
   }
 }
 </script>
