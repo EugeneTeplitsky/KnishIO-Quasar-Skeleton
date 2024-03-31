@@ -163,7 +163,7 @@ const actionsObj = {
       password,
       secret
     })) {
-      if (process.env.KNISHIO_2FA_ENABLED) {
+      if (KNISHIO_SETTINGS.auth2faEnabled) {
         if (!this.auth2fa || auth2fa === null) {
           this.auth2fa = randomString(8)
           return this.auth2fa
@@ -342,7 +342,7 @@ const actionsObj = {
       return true
     }
 
-    if (process.env.KNISHIO_2FA_ENABLED) {
+    if (KNISHIO_SETTINGS.auth2faEnabled) {
       if (!this.auth2fa || auth2fa === null) {
         this.auth2fa = randomString(8)
         return this.auth2fa
@@ -373,7 +373,7 @@ const actionsObj = {
       metaData: {
         publicName,
         usernameHash: this.hash(username),
-        appSlug: String(process.env.KNISHIO_APP_SLUG)
+        appSlug: KNISHIO_SETTINGS.cellSlug
       },
       metaId: generateBundleHash(secret)
     }
@@ -481,8 +481,8 @@ const gettersObj = {
    * @returns {boolean} - True if the user is an authorized admin, false otherwise.
    */
   userIsAuthorized () {
-    const admins = Array.isArray(process.env.KNISHIO_APP_ADMINS)
-      ? process.env.KNISHIO_APP_ADMINS
+    const admins = Array.isArray(KNISHIO_SETTINGS.admins)
+      ? KNISHIO_SETTINGS.admins
       : []
     return admins.includes(this.bundle)
   },
@@ -504,8 +504,8 @@ const gettersObj = {
   encryptionWallet () {
     return new Wallet({
       secret: this.secret,
-      token: process.env.KNISHIO_APP_ENCRYPTION_TOKEN,
-      position: process.env.KNISHIO_APP_ENCRYPTION_POSITION
+      token: KNISHIO_SETTINGS.encryptionToken,
+      position: KNISHIO_SETTINGS.encryptionPosition
     })
   }
 }
