@@ -91,8 +91,14 @@ const linksList = [
   {
     title: 'Knish.IO Technical Whitepaper',
     caption: 'Version 6.1',
-    icon: 'news',
+    icon: 'book',
     link: 'https://github.com/WishKnish/KnishIO-Technical-Whitepaper#readme'
+  },
+  {
+    title: 'GitHub Project Repo',
+    caption: 'Knish.IO Quasar Skeleton',
+    icon: 'code',
+    link: 'https://github.com/EugeneTeplitsky/KnishIO-Quasar-Skeleton'
   }
 ]
 
