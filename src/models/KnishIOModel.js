@@ -79,6 +79,7 @@ export default class KnishIOModel {
     }
 
     const result = await client.queryAtom({
+      isotope: 'M',
       metaType: type,
       metaId: metaId || this.id
     })

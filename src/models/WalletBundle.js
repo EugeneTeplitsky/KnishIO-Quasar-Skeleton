@@ -28,6 +28,7 @@ export default class WalletBundle extends KnishIOModel {
       metaType: KnishIOModel.resolveMetaType(this.constructor.metaType),
       metaId: bundleHash || this.id,
       filter: filters,
+      isotope: 'M',
       latest: true
     })
     if (result) {
