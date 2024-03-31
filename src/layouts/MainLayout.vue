@@ -12,7 +12,7 @@
         />
 
         <q-toolbar-title>
-          Quasar App
+          Knish.IO App Skeleton
         </q-toolbar-title>
 
         <div
@@ -56,8 +56,12 @@
       </div>
       <div
         v-else
+        class="row fit flex-center"
       >
-        Ledger client not initialized
+        <q-spinner
+          size="50vh"
+          color="primary"
+        />
       </div>
     </q-page-container>
   </q-layout>
@@ -85,46 +89,10 @@ const { dltStore } = hasDltStore()
 const router = useRouter()
 const linksList = [
   {
-    title: 'Docs',
-    caption: 'quasar.dev',
-    icon: 'school',
-    link: 'https://quasar.dev'
-  },
-  {
-    title: 'Github',
-    caption: 'github.com/quasarframework',
-    icon: 'code',
-    link: 'https://github.com/quasarframework'
-  },
-  {
-    title: 'Discord Chat Channel',
-    caption: 'chat.quasar.dev',
-    icon: 'chat',
-    link: 'https://chat.quasar.dev'
-  },
-  {
-    title: 'Forum',
-    caption: 'forum.quasar.dev',
-    icon: 'record_voice_over',
-    link: 'https://forum.quasar.dev'
-  },
-  {
-    title: 'Twitter',
-    caption: '@quasarframework',
-    icon: 'rss_feed',
-    link: 'https://twitter.quasar.dev'
-  },
-  {
-    title: 'Facebook',
-    caption: '@QuasarFramework',
-    icon: 'public',
-    link: 'https://facebook.quasar.dev'
-  },
-  {
-    title: 'Quasar Awesome',
-    caption: 'Community Quasar projects',
-    icon: 'favorite',
-    link: 'https://awesome.quasar.dev'
+    title: 'Knish.IO Technical Whitepaper',
+    caption: 'Version 6.1',
+    icon: 'news',
+    link: 'https://github.com/WishKnish/KnishIO-Technical-Whitepaper#readme'
   }
 ]
 
@@ -153,7 +121,7 @@ onMounted(async () => {
     // Check if the user is logged in
     if (dltStore.isLoggedIn) {
       // User is logged in, perform any necessary actions
-      console.log('User is logged in')
+      console.log(`Welcome, ${dltStore.profile.publicName}`)
       // Example: Redirect to a dashboard page
       // this.$router.push('/dashboard')
     } else {
