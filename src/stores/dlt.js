@@ -184,11 +184,11 @@ const actionsObj = {
 
       await this.authorize(secret)
 
-      this.isLoggedIn = true
       this.username = username
       this.auth2fa = null
       await setDataPromise(db, 'username', username)
       await this.init(secret)
+      this.isLoggedIn = true
       return true
     } else {
       console.warn('DLT::login() - Failed to retrieve results for given auth user...')
