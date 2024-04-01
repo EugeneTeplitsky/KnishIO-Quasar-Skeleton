@@ -6,7 +6,6 @@
 import Meta from '@wishknish/knishio-client-js/src/Meta'
 import { KNISHIO_SETTINGS } from 'src/libraries/constants/knishio'
 import { randomString } from 'src/libraries/strings'
-import BaseException from '@wishknish/knishio-client-js/src/exception/BaseException'
 
 export default class KnishIOModel {
   /**
