@@ -99,55 +99,6 @@ export default class KnishIOModel {
   }
 
   /**
-   * Returns an array with num fake screenshot URLs
-   *
-   * @param {int} num
-   * @param {int} width
-   * @param {int} height
-   * @param {boolean} randomize
-   * @returns {[]}
-   */
-  static fakeScreenshots (num = 10, width = 640, height = 480, randomize = true) {
-    const screenshots = []
-    const sources = [
-      `https://picsum.photos/${width}/${height}?`
-      // `https://lorempixel.com/${ width }/${ height }/?`,
-      // `https://source.unsplash.com/${ width }x${ height }/?sig=`,
-    ]
-
-    for (let i = 0; i < (randomize ? Math.ceil(Math.random() * num) : num); i++) {
-      const source = sources[Math.floor(Math.random() * sources.length)]
-      screenshots.push(`${source} ${randomString(32)}`)
-    }
-
-    return screenshots
-  }
-
-  /**
-   * Returns an array with 3 fake nested category names
-   *
-   * @returns {*[]}
-   */
-  static fakeCategories (categories) {
-    const category1Keys = Object.keys(categories)
-    const category1 = category1Keys[Math.floor(Math.random() * category1Keys.length)]
-    let category2 = null
-    let category3 = null
-
-    if (category1 && categories[category1].options) {
-      const category2Keys = Object.keys(categories[category1].options)
-      category2 = category2Keys[Math.floor(Math.random() * category2Keys.length)]
-    }
-
-    if (category2 && categories[category1].options[category2].options) {
-      const category3Keys = Object.keys(categories[category1].options[category2].options)
-      category3 = category3Keys[Math.floor(Math.random() * category3Keys.length)]
-    }
-
-    return [category1, category2, category3]
-  }
-
-  /**
    * Save meta to ledger
    *
    * @param {KnishIOClient} client
@@ -237,31 +188,5 @@ export default class KnishIOModel {
     }
 
     return metaType
-  }
-
-  /**
-   * Change metas field status for selected MetaType object
-   * @param client
-   * @param archive
-   * @param needCalculateStatus
-   * @returns boolean
-   */
-  async changeStatus (client, archive = null, needCalculateStatus = true) {
-    if (needCalculateStatus) {
-      this.metas.status = archive
-        ? this.metas.status === 'archived' ? 'inactive' : 'archived'
-        : this.metas.status === 'proposed' ? 'active'
-          : this.metas.status === 'active' ? 'inactive' : 'active'
-    }
-
-    const response = await this.save(client, {
-      metaData: Object.assign({}, this.metas)
-    })
-
-    if (!response.error) {
-      return true
-    } else {
-      throw (new BaseException(response.error_message))
-    }
   }
 }
