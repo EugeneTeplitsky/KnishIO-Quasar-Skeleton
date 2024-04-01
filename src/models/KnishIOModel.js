@@ -27,8 +27,9 @@ export default class KnishIOModel {
       this.createdAt = rawInstance.createdAt
 
       // Load metadata
-      if (rawInstance.metas) {
-        this.loadMetas(rawInstance.metas)
+      const metas = rawInstance.metas || rawInstance.metasJson
+      if (metas) {
+        this.loadMetas(metas)
       }
     }
   }
@@ -44,11 +45,11 @@ export default class KnishIOModel {
   /**
    * Converts object metadata into class properties
    *
-   * @param {Object} rawMetas
+   * @param {Object|string} rawMetas
    */
   loadMetas (rawMetas) {
-    this.metas = Meta.aggregateMeta(rawMetas)
-
+    const metas = typeof rawMetas === 'object' ? rawMetas : JSON.parse(rawMetas)
+    this.metas = Meta.aggregateMeta(metas)
     Object.keys(this.metas).forEach(key => {
       if (this.metas[key] === 'null') {
         this.metas[key] = null
@@ -69,29 +70,21 @@ export default class KnishIOModel {
     metaId = null
   }) {
     // Resolving type name from class
-    let type
-    if (metaType) {
-      // MetaType was already provided
-      type = metaType
-    } else {
-      // Resolving MetaType
-      type = KnishIOModel.resolveMetaType(this.constructor.metaType)
-    }
+    const type = metaType || KnishIOModel.resolveMetaType(this.constructor.metaType)
 
     const result = await client.queryAtom({
       isotope: 'M',
       metaType: type,
-      metaId: metaId || this.id
+      metaId: metaId || this.id,
+      latest: metaId !== null
     })
-
-    console.log(result)
-
-    if (result && result.instances && result.instances.length > 0) {
+    const payload = result.response().data.Atom
+    if (payload && payload.instances && payload.instances.length > 0) {
       if (metaId) {
         this.id = metaId
-        this.createdAt = result.instances[0].createdAt
+        this.createdAt = payload.instances[0].createdAt
       }
-      this.loadMetas(result.instances[0].metas)
+      this.loadMetas(payload.instances[0].metasJson)
       return true
     } else {
       return false
@@ -165,6 +158,37 @@ export default class KnishIOModel {
   }
 
   /**
+   * Queries the ledger to retrieve meta model data
+   *
+   * @param client
+   * @param metaType
+   * @param metaId
+   * @returns {Promise<*[]>}
+   */
+  static async query (client, {
+    metaType = null,
+    metaId = null
+  }) {
+    const type = metaType || KnishIOModel.resolveMetaType(this.metaType)
+    const result = await client.queryAtom({
+      isotope: 'M',
+      metaType: type,
+      metaId: metaId || this.id,
+      latest: metaId !== null
+    })
+    const payload = result.response().data.Atom
+    if (payload && payload.instances && payload.instances.length > 0) {
+      const instances = []
+      payload.instances.forEach(instance => {
+        instances.push(new KnishIOModel(instance))
+      })
+      return instances
+    } else {
+      return []
+    }
+  }
+
+  /**
    * Resolves a class name into a MetaType string
    *
    * @param {string} className
@@ -182,9 +206,7 @@ export default class KnishIOModel {
       metaType = KNISHIO_SETTINGS.types[className]
     } else if (className) {
       // No matches found - use base prefix plus class name
-      metaType = `${process.env.KNISHIO_APP_MODEL_PREFIX}${className}`
-    } else {
-      throw new BaseException(`KnishIOModel::resolveMetaType - Unable to find MetaType for model ${className}!`)
+      metaType = className
     }
 
     return metaType
