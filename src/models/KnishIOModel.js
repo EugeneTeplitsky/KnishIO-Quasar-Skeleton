@@ -23,7 +23,9 @@ export default class KnishIOModel {
         this.id = rawInstance.id
       }
 
-      this.createdAt = rawInstance.createdAt
+      ['createdAt', 'bundleHashes', 'molecularHash'].forEach(key => {
+        this[key] = rawInstance[key]
+      })
 
       // Load metadata
       const metas = rawInstance.metas || rawInstance.metasJson
@@ -162,28 +164,40 @@ export default class KnishIOModel {
    * @param client
    * @param metaType
    * @param metaId
-   * @returns {Promise<*[]>}
+   * @param queryArgs
+   * @param filter
+   * @returns {Promise<{pagination: (*|{}), instances: *[]}>}
    */
   static async query (client, {
     metaType = null,
-    metaId = null
+    metaId = null,
+    queryArgs = {},
+    filter = []
   }) {
     const type = metaType || KnishIOModel.resolveMetaType(this.metaType)
     const result = await client.queryAtom({
       isotope: 'M',
       metaType: type,
       metaId: metaId || this.id,
-      latest: metaId !== null
+      latest: metaId !== null,
+      queryArgs,
+      filter
     })
-    const payload = result.response().data.Atom
+    const payload = result?.response()?.data?.Atom
     if (payload && payload.instances && payload.instances.length > 0) {
       const instances = []
       payload.instances.forEach(instance => {
         instances.push(new KnishIOModel(instance))
       })
-      return instances
+      return {
+        instances,
+        pagination: payload ? payload.paginatorInfo : {}
+      }
     } else {
-      return []
+      return {
+        instances: [],
+        pagination: {}
+      }
     }
   }
 
