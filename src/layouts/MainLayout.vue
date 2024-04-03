@@ -99,6 +99,12 @@ const linksList = [
     caption: 'Knish.IO Quasar Skeleton',
     icon: 'code',
     link: 'https://github.com/EugeneTeplitsky/KnishIO-Quasar-Skeleton'
+  },
+  {
+    title: 'Quasar',
+    caption: 'UI Framework',
+    icon: 'school',
+    link: 'https://quasar.dev'
   }
 ]
 
