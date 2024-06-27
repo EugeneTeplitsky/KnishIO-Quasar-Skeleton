@@ -136,6 +136,7 @@ onMounted(async () => {
       console.log(`Welcome, ${dltStore.profile.publicName}`)
       // Example: Redirect to a dashboard page
       // this.$router.push('/dashboard')
+      await dltStore.queryMeta()
     } else {
       // User is not logged in, perform any necessary actions
       console.log('User is not logged in')

@@ -472,6 +472,30 @@ const actionsObj = {
     }
 
     return validServers
+  },
+
+  async queryMeta (metaType = 'walletBundle') {
+    const result = await this.client.queryMeta({
+      metaType,
+      metaId: generateBundleHash(this.secret),
+      latest: true,
+      latestMetas: true
+    })
+
+    this.wallets = result
+  },
+
+  async writeMeta (key, value, metaType) {
+    const meta = {}
+    meta[key] = value
+
+    const response = await this.client.createMeta({
+      metaType,
+      metaId: generateBundleHash(this.secret),
+      meta
+    })
+
+    return response
   }
 }
 
